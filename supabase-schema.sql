@@ -45,6 +45,13 @@ create table if not exists pantry_items (
   added_by text
 );
 
+-- Exie's freeform requests to volunteers
+create table if not exists exie_requests (
+  id uuid primary key default gen_random_uuid(),
+  message text not null,
+  created_at timestamptz default now()
+);
+
 -- Indexes for common queries
 create index if not exists visits_visit_date_idx on visits(visit_date);
 create index if not exists visits_volunteer_id_idx on visits(volunteer_id);
@@ -72,3 +79,7 @@ create policy "Public read" on pantry_items for select using (true);
 create policy "Public insert" on pantry_items for insert with check (true);
 create policy "Public update" on pantry_items for update using (true);
 create policy "Public delete" on pantry_items for delete using (true);
+
+alter table exie_requests enable row level security;
+create policy "Public read" on exie_requests for select using (true);
+create policy "Public insert" on exie_requests for insert with check (true);

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
-// Placeholder data — will be replaced with Supabase queries
+// Placeholder visit data — will be replaced with Supabase queries
 const WEEK_VISITS = [
   {
     id: "1",
@@ -39,6 +40,37 @@ const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function ExiePage() {
   const today = new Date();
   const dayIndex = today.getDay();
+
+  const [currentRequest, setCurrentRequest] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("exie_requests")
+      .select("message")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) setCurrentRequest(data[0].message);
+      });
+  }, []);
+
+  async function sendRequest() {
+    if (!message.trim()) return;
+    setSending(true);
+    const { error } = await supabase
+      .from("exie_requests")
+      .insert({ message: message.trim() });
+    if (!error) {
+      setCurrentRequest(message.trim());
+      setMessage("");
+      setSent(true);
+      setTimeout(() => setSent(false), 3000);
+    }
+    setSending(false);
+  }
 
   return (
     <main className="min-h-screen bg-[#fdf8f3] px-4 py-6 max-w-lg mx-auto">
@@ -82,7 +114,7 @@ export default function ExiePage() {
       </div>
 
       {/* Visits */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 mb-8">
         <h2 className="text-lg font-semibold text-[#6b5740]">
           Visitors this week
         </h2>
@@ -124,6 +156,44 @@ export default function ExiePage() {
             </div>
           ))
         )}
+      </div>
+
+      {/* Message my volunteers */}
+      <div className="flex flex-col gap-3 mb-8">
+        <h2 className="text-lg font-semibold text-[#6b5740]">
+          Message my volunteers 💬
+        </h2>
+
+        {sent && (
+          <div className="bg-[#e8f5ee] border border-[#b8ddc8] rounded-2xl px-4 py-3">
+            <p className="text-sm font-semibold text-[#5a9470]">
+              ✓ Your volunteers can see your message!
+            </p>
+          </div>
+        )}
+
+        {currentRequest && !sent && (
+          <div className="bg-[#fde8d5] border border-[#f0d0b0] rounded-2xl px-4 py-3">
+            <p className="text-xs font-semibold text-[#c98659] mb-1">Your current request</p>
+            <p className="text-[#2d2416] text-base">{currentRequest}</p>
+          </div>
+        )}
+
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Type any request for your volunteers… e.g. Could someone bring me a burger from Super Duper? 🍔"
+          rows={3}
+          className="w-full bg-white border border-[#e8ddd0] rounded-2xl px-4 py-3 text-[#2d2416] placeholder:text-[#b0a090] focus:outline-none focus:border-[#e8a87c] resize-none text-base"
+        />
+
+        <button
+          onClick={sendRequest}
+          disabled={sending || !message.trim()}
+          className="w-full bg-[#e8a87c] hover:bg-[#d9976a] disabled:opacity-50 text-white text-base font-semibold py-4 rounded-2xl shadow-sm transition-colors"
+        >
+          {sent ? "Sent! 🌸" : sending ? "Sending…" : "Send to my volunteers"}
+        </button>
       </div>
 
       {/* Footer note */}

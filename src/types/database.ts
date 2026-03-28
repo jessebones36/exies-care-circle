@@ -53,6 +53,15 @@ export type Database = {
         Insert: Omit<Database['public']['Tables']['pantry_items']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['pantry_items']['Insert']>
       }
+      exie_requests: {
+        Row: {
+          id: string
+          message: string
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['exie_requests']['Row'], 'id' | 'created_at'>
+        Update: never
+      }
     }
   }
 }

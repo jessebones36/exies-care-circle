@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 // ── Placeholder data ──────────────────────────────────────────────────────────
 const THIS_WEEK_VISITS = [
@@ -59,15 +60,48 @@ const PANTRY_ITEMS = [
 ];
 
 type PantryTab = "pantry" | "fridge" | "freezer";
-type MainTab = "schedule" | "pantry";
+type MainTab = "schedule" | "pantry" | "messages";
+
+type ExieMessage = { id: string; message: string; created_at: string };
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function VolunteerPage() {
   const [mainTab, setMainTab] = useState<MainTab>("schedule");
   const [pantryTab, setPantryTab] = useState<PantryTab>("pantry");
   const [expandedVisit, setExpandedVisit] = useState<string | null>(null);
+  const [exieMessages, setExieMessages] = useState<ExieMessage[]>([]);
 
   const filteredPantry = PANTRY_ITEMS.filter((i) => i.location === pantryTab);
+  const latestMessage = exieMessages[0] ?? null;
+
+  useEffect(() => {
+    supabase
+      .from("exie_requests")
+      .select("id, message, created_at")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setExieMessages(data);
+      });
+  }, []);
+
+  async function clearMessage(id: string) {
+    const { error } = await supabase
+      .from("exie_requests")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      setExieMessages((prev) => prev.filter((m) => m.id !== id));
+    }
+  }
+
+  function formatTime(iso: string) {
+    return new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
 
   return (
     <main className="min-h-screen bg-[#fdf8f3] pb-24">
@@ -88,9 +122,7 @@ export default function VolunteerPage() {
           <button
             onClick={() => setMainTab("schedule")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              mainTab === "schedule"
-                ? "bg-[#7aab8a] text-white"
-                : "text-[#6b5740]"
+              mainTab === "schedule" ? "bg-[#7aab8a] text-white" : "text-[#6b5740]"
             }`}
           >
             📅 Schedule
@@ -98,18 +130,37 @@ export default function VolunteerPage() {
           <button
             onClick={() => setMainTab("pantry")}
             className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              mainTab === "pantry"
-                ? "bg-[#7aab8a] text-white"
-                : "text-[#6b5740]"
+              mainTab === "pantry" ? "bg-[#7aab8a] text-white" : "text-[#6b5740]"
             }`}
           >
             🥫 Pantry
+          </button>
+          <button
+            onClick={() => setMainTab("messages")}
+            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors relative ${
+              mainTab === "messages" ? "bg-[#7aab8a] text-white" : "text-[#6b5740]"
+            }`}
+          >
+            💬 Exie
+            {exieMessages.length > 0 && mainTab !== "messages" && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-[#e8a87c] rounded-full" />
+            )}
           </button>
         </div>
 
         {/* ── Schedule Tab ──────────────────────────────────────────────────── */}
         {mainTab === "schedule" && (
           <div className="flex flex-col gap-4">
+            {/* Latest message banner */}
+            {latestMessage && (
+              <div className="bg-[#fde8d5] border border-[#f0d0b0] rounded-2xl px-4 py-3">
+                <p className="text-xs font-semibold text-[#c98659] mb-1">
+                  💬 Exie is requesting
+                </p>
+                <p className="text-[#2d2416] text-sm">{latestMessage.message}</p>
+              </div>
+            )}
+
             {/* Sign up CTA */}
             <Link
               href="/volunteer/sign-up"
@@ -129,7 +180,6 @@ export default function VolunteerPage() {
                   visit.cancelled ? "border-red-100 opacity-60" : "border-[#f0e8dc]"
                 }`}
               >
-                {/* Visit summary row */}
                 <button
                   className="w-full text-left p-4"
                   onClick={() =>
@@ -167,7 +217,6 @@ export default function VolunteerPage() {
                   </div>
                 </button>
 
-                {/* Expanded food details */}
                 {expandedVisit === visit.id && (
                   <div className="px-4 pb-4 border-t border-[#f0e8dc] pt-3">
                     {visit.foodItems.length > 0 ? (
@@ -177,10 +226,7 @@ export default function VolunteerPage() {
                         </p>
                         <ul className="flex flex-col gap-1.5">
                           {visit.foodItems.map((fi, i) => (
-                            <li
-                              key={i}
-                              className="flex justify-between text-sm text-[#2d2416]"
-                            >
+                            <li key={i} className="flex justify-between text-sm text-[#2d2416]">
                               <span>{fi.item}</span>
                               <span className="text-[#b0a090]">{fi.quantity}</span>
                             </li>
@@ -188,9 +234,7 @@ export default function VolunteerPage() {
                         </ul>
                       </>
                     ) : (
-                      <p className="text-sm text-[#b0a090]">
-                        No food items listed.
-                      </p>
+                      <p className="text-sm text-[#b0a090]">No food items listed.</p>
                     )}
                   </div>
                 )}
@@ -206,25 +250,20 @@ export default function VolunteerPage() {
               What Exie already has — check before bringing more!
             </p>
 
-            {/* Location tabs */}
             <div className="flex bg-white rounded-xl p-1 shadow-sm">
               {(["pantry", "fridge", "freezer"] as PantryTab[]).map((loc) => (
                 <button
                   key={loc}
                   onClick={() => setPantryTab(loc)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold capitalize transition-colors ${
-                    pantryTab === loc
-                      ? "bg-[#e8a87c] text-white"
-                      : "text-[#6b5740]"
+                    pantryTab === loc ? "bg-[#e8a87c] text-white" : "text-[#6b5740]"
                   }`}
                 >
-                  {loc === "pantry" ? "🥫" : loc === "fridge" ? "🧊" : "❄️"}{" "}
-                  {loc}
+                  {loc === "pantry" ? "🥫" : loc === "fridge" ? "🧊" : "❄️"} {loc}
                 </button>
               ))}
             </div>
 
-            {/* Items list */}
             <div className="bg-white rounded-2xl shadow-sm border border-[#f0e8dc] divide-y divide-[#f0e8dc]">
               {filteredPantry.length === 0 ? (
                 <p className="p-4 text-sm text-[#b0a090] text-center">
@@ -232,10 +271,7 @@ export default function VolunteerPage() {
                 </p>
               ) : (
                 filteredPantry.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex justify-between items-center px-4 py-3"
-                  >
+                  <div key={item.id} className="flex justify-between items-center px-4 py-3">
                     <span className="text-sm text-[#2d2416]">{item.item}</span>
                     <span className="text-sm text-[#b0a090]">{item.quantity}</span>
                   </div>
@@ -246,6 +282,39 @@ export default function VolunteerPage() {
             <button className="w-full bg-[#e8a87c] hover:bg-[#d9976a] text-white text-base font-semibold py-4 rounded-2xl shadow-sm transition-colors">
               + Add item
             </button>
+          </div>
+        )}
+
+        {/* ── Messages Tab ──────────────────────────────────────────────────── */}
+        {mainTab === "messages" && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-[#6b5740]">
+              Requests from Exie — clear them once handled.
+            </p>
+
+            {exieMessages.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center text-[#b0a090] shadow-sm border border-[#f0e8dc]">
+                No messages from Exie yet.
+              </div>
+            ) : (
+              exieMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className="bg-white rounded-2xl shadow-sm border border-[#f0e8dc] px-4 py-4 flex items-start justify-between gap-3"
+                >
+                  <div className="flex-1">
+                    <p className="text-[#2d2416] text-base">{msg.message}</p>
+                    <p className="text-xs text-[#b0a090] mt-1">{formatTime(msg.created_at)}</p>
+                  </div>
+                  <button
+                    onClick={() => clearMessage(msg.id)}
+                    className="text-[#b0a090] hover:text-red-400 transition-colors text-sm font-medium shrink-0 mt-0.5"
+                  >
+                    Clear
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
