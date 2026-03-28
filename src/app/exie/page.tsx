@@ -128,7 +128,7 @@ export default function ExiePage() {
 
       {/* Footer note */}
       <p className="text-center text-[#b0a090] text-sm mt-8">
-        Your care circle loves you 🌸
+        We love you, Exie 🌸
       </p>
     </main>
   );
