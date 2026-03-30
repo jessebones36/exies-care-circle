@@ -11,15 +11,16 @@ export type Database = {
         }
         Insert: Omit<Database['public']['Tables']['volunteers']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['volunteers']['Insert']>
+        Relationships: []
       }
       visits: {
         Row: {
           id: string
           volunteer_id: string
-          visit_date: string        // ISO date: YYYY-MM-DD
-          visit_time: string        // HH:MM
+          visit_date: string
+          visit_time: string
           is_recurring: boolean
-          recurrence_day: number | null  // 0=Sun ... 6=Sat
+          recurrence_day: number | null
           bringing_groceries: boolean
           bringing_meal: boolean
           notes: string | null
@@ -29,6 +30,7 @@ export type Database = {
         }
         Insert: Omit<Database['public']['Tables']['visits']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['visits']['Insert']>
+        Relationships: []
       }
       food_items: {
         Row: {
@@ -40,6 +42,7 @@ export type Database = {
         }
         Insert: Omit<Database['public']['Tables']['food_items']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['food_items']['Insert']>
+        Relationships: []
       }
       pantry_items: {
         Row: {
@@ -52,6 +55,7 @@ export type Database = {
         }
         Insert: Omit<Database['public']['Tables']['pantry_items']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['pantry_items']['Insert']>
+        Relationships: []
       }
       exie_requests: {
         Row: {
@@ -60,9 +64,12 @@ export type Database = {
           created_at: string
         }
         Insert: Omit<Database['public']['Tables']['exie_requests']['Row'], 'id' | 'created_at'>
-        Update: never
+        Update: Partial<Database['public']['Tables']['exie_requests']['Insert']>
+        Relationships: []
       }
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
   }
 }
 

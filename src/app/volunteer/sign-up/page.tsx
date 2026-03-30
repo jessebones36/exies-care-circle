@@ -134,7 +134,7 @@ export default function SignUpPage() {
 
     const { data: volunteerData, error: volunteerError } = await supabase
       .from("volunteers")
-      .insert({ name: form.name.trim(), phone: form.phone.trim() || null })
+      .insert({ name: form.name.trim(), phone: form.phone.trim() || null, email: null })
       .select("id")
       .single();
 
@@ -155,6 +155,8 @@ export default function SignUpPage() {
         bringing_meal: foodItems.length > 0,
         bringing_groceries: false,
         notes: form.guestName.trim() ? `Guest: ${form.guestName.trim()}` : null,
+        cancelled: false,
+        cancelled_at: null,
       })
       .select("id")
       .single();

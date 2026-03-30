@@ -5,17 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type Location = "pantry" | "fridge" | "freezer";
+type StorageLocation = "pantry" | "fridge" | "freezer";
 
 type PantryEntry = {
   key: string; // local key for React list
   item: string;
   quantity: string;
-  location: Location;
+  location: StorageLocation;
   fromVisit: boolean; // preloaded from visit vs. manually added
 };
 
-const LOCATION_LABELS: Record<Location, string> = {
+const LOCATION_LABELS: Record<StorageLocation, string> = {
   pantry: "🥫 Pantry",
   fridge: "🧊 Fridge",
   freezer: "❄️ Freezer",
@@ -30,7 +30,7 @@ export default function AddPantryItemPage() {
   const router = useRouter();
 
   const [entries, setEntries] = useState<PantryEntry[]>([]);
-  const [newItem, setNewItem] = useState({ item: "", quantity: "", location: "pantry" as Location });
+  const [newItem, setNewItem] = useState({ item: "", quantity: "", location: "pantry" as StorageLocation });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [visitInfo, setVisitInfo] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function AddPantryItemPage() {
               key: makeKey(),
               item: fi.item_name,
               quantity: fi.quantity ?? "",
-              location: "pantry" as Location,
+              location: "pantry" as StorageLocation,
               fromVisit: true,
             }))
           );
@@ -115,6 +115,7 @@ export default function AddPantryItemPage() {
         quantity: entry.quantity || null,
         location: entry.location,
         last_updated: new Date().toISOString(),
+        added_by: null,
       }))
     );
 
@@ -201,7 +202,7 @@ export default function AddPantryItemPage() {
 
                   {/* Location selector */}
                   <div className="flex border-t border-[#f0e8dc]">
-                    {(["pantry", "fridge", "freezer"] as Location[]).map((loc) => (
+                    {(["pantry", "fridge", "freezer"] as StorageLocation[]).map((loc) => (
                       <button
                         key={loc}
                         type="button"
@@ -247,7 +248,7 @@ export default function AddPantryItemPage() {
                   />
                 </div>
                 <div className="flex border-t border-[#f0e8dc]">
-                  {(["pantry", "fridge", "freezer"] as Location[]).map((loc) => (
+                  {(["pantry", "fridge", "freezer"] as StorageLocation[]).map((loc) => (
                     <button
                       key={loc}
                       type="button"

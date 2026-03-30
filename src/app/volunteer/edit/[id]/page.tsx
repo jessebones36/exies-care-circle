@@ -33,17 +33,25 @@ export default function EditVisitPage({
       .select("visit_date, visit_time, is_recurring, bringing_meal, bringing_groceries, food_items(item_name, quantity)")
       .eq("id", id)
       .single()
-      .then(({ data }) => {
+      .then(({ data: raw }) => {
+        const data = raw as unknown as {
+          visit_date: string;
+          visit_time: string;
+          is_recurring: boolean;
+          bringing_meal: boolean;
+          bringing_groceries: boolean;
+          food_items: { item_name: string; quantity: string | null }[];
+        } | null;
         if (data) {
           setForm({
             date: data.visit_date,
-            time: (data.visit_time as string).slice(0, 5),
+            time: data.visit_time.slice(0, 5),
             isRecurring: data.is_recurring,
             bringingMeal: data.bringing_meal,
             bringingGroceries: data.bringing_groceries,
           });
           setFoodItems(
-            (data.food_items as { item_name: string; quantity: string | null }[]).map((fi) => ({
+            data.food_items.map((fi) => ({
               item: fi.item_name,
               quantity: fi.quantity ?? "",
             }))
