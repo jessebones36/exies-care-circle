@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Crimson_Pro, Raleway } from "next/font/google";
 import "./globals.css";
 
-const geist = Geist({
+const crimsonPro = Crimson_Pro({
   subsets: ["latin"],
-  variable: "--font-geist",
+  weight: ["400", "700", "800"],
+  variable: "--font-crimson-pro",
+});
+
+const raleway = Raleway({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-raleway",
 });
 
 export const metadata: Metadata = {
@@ -18,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} h-full`}>
-      <body className="min-h-full font-[family-name:var(--font-geist)] antialiased">
+    <html lang="en" className={`${crimsonPro.variable} ${raleway.variable} h-full`}>
+      <body className="min-h-full font-[family-name:var(--font-sans)] antialiased">
         {children}
       </body>
     </html>

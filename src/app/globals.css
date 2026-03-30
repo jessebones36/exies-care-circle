@@ -1,16 +1,46 @@
 @import "tailwindcss";
 
-:root {
-  --background: #fdf8f3;
-  --foreground: #2d2416;
-}
+@theme {
+  /* ── Colors ─────────────────────────────────────────────────────────────── */
+  /* Primitives */
+  --color-primary:           #e8a87c; /* Primary Action */
+  --color-primary-light:     #fde8d5; /* Primary Light */
+  --color-secondary:         #7aab8a; /* Secondary Action */
+  --color-secondary-light:   #e8f5ee; /* Secondary Light */
+  --color-bg:                #fdf8f3; /* Background */
+  --color-surface:           #ffffff; /* Light 0 */
+  --color-text:              #2d2416; /* Dark 0 */
+  --color-text-mid:          #6b5740; /* Dark 1 */
+  --color-text-light:        #988b7e; /* Light 1 */
+  --color-text-muted:        #b0a090; /* used for placeholders / secondary labels */
+  --color-destroy:           #f93e14; /* Destroy */
+  --color-border:            #f0e8dc; /* card / divider borders */
+  --color-primary-border:    #f0d0b0; /* primary banner border */
+  --color-tag-bg:            #f5efe8; /* recurring / badge background */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* ── Typography ─────────────────────────────────────────────────────────── */
+  --font-display: var(--font-crimson-pro), Georgia, serif;   /* Header 1/2, Strong 1 */
+  --font-sans:    var(--font-raleway), system-ui, sans-serif; /* Strong 2/3, body */
+
+  /* Font sizes (mapped from text styles) */
+  --text-h1:      20px; /* Header 1 — Crimson Pro Bold */
+  --text-h2:      18px; /* Header 2 — Crimson Pro ExtraBold */
+  --text-strong1: 24px; /* Strong 1 — Crimson Pro Regular */
+  --text-strong2: 15px; /* Strong 2 — Raleway Medium */
+  --text-strong3: 16px; /* Strong 3 — Raleway Medium */
+
+  /* ── Spacing ─────────────────────────────────────────────────────────────── */
+  --spacing-main:      24px; /* Padding Main — page horizontal padding */
+  --spacing-container: 14px; /* Padding Container — card inner padding */
+  --spacing-stack:      4px; /* Padding Stack — tight vertical gap */
+
+  /* ── Border Radius ──────────────────────────────────────────────────────── */
+  --radius-card: 16px; /* Corner 1 — cards, buttons, banners */
+  --radius-pill: 12px; /* Corner 2 — tab bars, chips */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
 }

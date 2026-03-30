@@ -1,60 +1,69 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-// Placeholder visit data — will be replaced with Supabase queries
-const WEEK_VISITS = [
-  {
-    id: "1",
-    day: "Sunday",
-    date: "Mar 30",
-    time: "2:00 PM",
-    volunteerName: "Sarah M.",
-    bringingMeal: true,
-    bringingGroceries: false,
-  },
-  {
-    id: "2",
-    day: "Tuesday",
-    date: "Apr 1",
-    time: "10:00 AM",
-    volunteerName: "James R.",
-    bringingMeal: false,
-    bringingGroceries: true,
-  },
-  {
-    id: "3",
-    day: "Thursday",
-    date: "Apr 3",
-    time: "3:00 PM",
-    volunteerName: "Linda K.",
-    bringingMeal: false,
-    bringingGroceries: false,
-  },
+const ADJECTIVES = [
+  "thrilled",
+  "excited",
+  "delighted",
+  "overjoyed",
+  "so happy",
+  "ecstatic",
+  "over the moon",
+  "absolutely thrilled",
+  "beyond excited",
+  "so excited",
 ];
 
-const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+type Visit = {
+  id: string;
+  visit_date: string;
+  visit_time: string;
+  notes: string | null;
+  bringing_meal: boolean;
+  bringing_groceries: boolean;
+  volunteers: { name: string } | null;
+  food_items: { item_name: string; quantity: string | null }[];
+};
+
+function formatTime(timeStr: string): string {
+  const [h, m] = timeStr.split(":").map(Number);
+  const d = new Date();
+  d.setHours(h, m);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function parseGuest(notes: string | null): string | null {
+  if (!notes) return null;
+  const match = notes.match(/^Guest:\s*(.+)/i);
+  return match ? match[1].trim() : null;
+}
 
 export default function ExiePage() {
-  const today = new Date();
-  const dayIndex = today.getDay();
-
-  const [currentRequest, setCurrentRequest] = useState<string | null>(null);
+  const [visit, setVisit] = useState<Visit | null | undefined>(undefined);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
+  const adjective = useMemo(
+    () => ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)],
+    []
+  );
+
   useEffect(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
     supabase
-      .from("exie_requests")
-      .select("message")
-      .order("created_at", { ascending: false })
+      .from("visits")
+      .select("id, visit_date, visit_time, notes, bringing_meal, bringing_groceries, volunteers(name), food_items(item_name, quantity)")
+      .eq("cancelled", false)
+      .gte("visit_date", todayStr)
+      .order("visit_date")
+      .order("visit_time")
       .limit(1)
-      .then(({ data }) => {
-        if (data && data.length > 0) setCurrentRequest(data[0].message);
-      });
+      .single()
+      .then(({ data }) => setVisit(data as unknown as Visit ?? null));
   }, []);
 
   async function sendRequest() {
@@ -64,7 +73,6 @@ export default function ExiePage() {
       .from("exie_requests")
       .insert({ message: message.trim() });
     if (!error) {
-      setCurrentRequest(message.trim());
       setMessage("");
       setSent(true);
       setTimeout(() => setSent(false), 3000);
@@ -72,134 +80,149 @@ export default function ExiePage() {
     setSending(false);
   }
 
+  const volunteerName = visit?.volunteers?.name ?? null;
+  const guestName = visit ? parseGuest(visit.notes) : null;
+  const time = visit ? formatTime(visit.visit_time) : null;
+  const foodItems = visit?.food_items ?? [];
+  const hasFoodItems = foodItems.length > 0 || visit?.bringing_meal || visit?.bringing_groceries;
+
+  // Build the greeting sentence
+  let greeting = "";
+  if (volunteerName && time) {
+    const who = guestName
+      ? `${volunteerName} & ${guestName}`
+      : volunteerName;
+    const verb = guestName ? "are" : "is";
+    greeting = `${who} ${verb} ${adjective} to see you at ${time}`;
+  }
+
   return (
-    <main className="min-h-screen bg-[#fdf8f3] px-4 py-6 max-w-lg mx-auto">
+    <main className="min-h-screen bg-[#fdf8f3] flex flex-col">
+      {/* Toast */}
+      {sent && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#5a9470] text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-lg whitespace-nowrap">
+          ✓ Your volunteers can see your message!
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <Link href="/" className="text-[#6b5740] text-sm">
+      <div className="bg-white h-[60px] flex items-center justify-center relative shrink-0 sticky top-0 z-10">
+        <Link href="/" className="absolute left-[17px] text-[#6b5740] text-[14px]">
           ← Home
         </Link>
-        <h1 className="text-2xl font-bold text-[#2d2416]">My Week</h1>
-        <div className="w-12" />
+        <h1
+          className="text-[20px] font-bold text-[#2d2416]"
+          style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+        >
+          Today's Guest
+        </h1>
       </div>
 
-      {/* Day strip */}
-      <div className="flex justify-between mb-8 bg-white rounded-2xl p-3 shadow-sm">
-        {DAYS_OF_WEEK.map((day, i) => {
-          const isToday = i === dayIndex;
-          const hasVisit = WEEK_VISITS.some((v) =>
-            v.day.startsWith(
-              ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][i].slice(0, 3)
-            )
-          );
-          return (
-            <div key={day} className="flex flex-col items-center gap-1">
-              <span className={`text-xs font-medium ${isToday ? "text-[#e8a87c]" : "text-[#6b5740]"}`}>
-                {day}
-              </span>
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold
-                  ${isToday
-                    ? "bg-[#e8a87c] text-white"
-                    : hasVisit
-                    ? "bg-[#fde8d5] text-[#c98659]"
-                    : "text-[#b0a090]"
-                  }`}
-              >
-                {hasVisit ? "♥" : "·"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Body */}
+      <div className="flex flex-col flex-1 gap-12 p-6 pb-[300px] overflow-y-auto">
 
-      {/* Visits */}
-      <div className="flex flex-col gap-4 mb-8">
-        <h2 className="text-lg font-semibold text-[#6b5740]">
-          Visitors this week
-        </h2>
-        {WEEK_VISITS.length === 0 ? (
-          <div className="bg-white rounded-2xl p-6 text-center text-[#b0a090] shadow-sm">
-            No visits scheduled yet this week.
-          </div>
-        ) : (
-          WEEK_VISITS.map((visit) => (
-            <div
-              key={visit.id}
-              className="bg-white rounded-2xl p-5 shadow-sm border border-[#f0e8dc]"
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-[#2d2416]">
-                    {visit.volunteerName}
-                  </p>
-                  <p className="text-lg text-[#6b5740] mt-1">
-                    {visit.day}, {visit.date}
-                  </p>
-                  <p className="text-xl font-semibold text-[#e8a87c] mt-1">
-                    {visit.time}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1 items-end">
-                  {visit.bringingMeal && (
-                    <span className="bg-[#fde8d5] text-[#c98659] text-sm font-medium px-3 py-1 rounded-full">
-                      🍽 Meal
-                    </span>
-                  )}
-                  {visit.bringingGroceries && (
-                    <span className="bg-[#e8f5ee] text-[#5a9470] text-sm font-medium px-3 py-1 rounded-full">
-                      🛒 Groceries
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Message my volunteers */}
-      <div className="flex flex-col gap-3 mb-8">
-        <h2 className="text-lg font-semibold text-[#6b5740]">
-          Message my volunteers 💬
-        </h2>
-
-        {sent && (
-          <div className="bg-[#e8f5ee] border border-[#b8ddc8] rounded-2xl px-4 py-3">
-            <p className="text-sm font-semibold text-[#5a9470]">
-              ✓ Your volunteers can see your message!
+        {/* Loading */}
+        {visit === undefined && (
+          <div className="bg-white rounded-[16px] p-[14px] flex items-center justify-center h-32">
+            <p className="text-[#b0a090] text-[17px]" style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}>
+              Loading…
             </p>
           </div>
         )}
 
-        {currentRequest && !sent && (
-          <div className="bg-[#fde8d5] border border-[#f0d0b0] rounded-2xl px-4 py-3">
-            <p className="text-xs font-semibold text-[#c98659] mb-1">Your current request</p>
-            <p className="text-[#2d2416] text-base">{currentRequest}</p>
+        {/* No visit */}
+        {visit === null && (
+          <div className="bg-white rounded-[16px] p-[14px] text-center">
+            <p
+              className="text-[27px] text-[#2d2416]"
+              style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+            >
+              No visits scheduled yet 🌸
+            </p>
           </div>
         )}
 
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type any request for your volunteers… e.g. Could someone bring me a burger from Super Duper? 🍔"
-          rows={3}
-          className="w-full bg-white border border-[#e8ddd0] rounded-2xl px-4 py-3 text-[#2d2416] placeholder:text-[#b0a090] focus:outline-none focus:border-[#e8a87c] resize-none text-base"
-        />
+        {/* Visit card */}
+        {visit && (
+          <div className="bg-white rounded-[16px] p-[14px] flex flex-col gap-3">
+            {/* Greeting sentence */}
+            <p
+              className="text-[27px] text-[#2d2416] text-center leading-snug"
+              style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+            >
+              {greeting}
+            </p>
+
+            {/* Divider + food — only when there's something to show */}
+            {hasFoodItems && (
+              <>
+                <div className="h-px bg-[#f0e8dc]" />
+                <div className="flex flex-col gap-4 py-2">
+                  <p
+                    className="text-[27px] text-[#988b7e] text-center"
+                    style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+                  >
+                    They are bringing…
+                  </p>
+                  {foodItems.map((fi, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between text-[17px] font-medium text-[#2d2416]"
+                      style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}
+                    >
+                      <span>{fi.item_name}</span>
+                      <span className="text-[#b0a090]">{fi.quantity}</span>
+                    </div>
+                  ))}
+                  {visit.bringing_meal && foodItems.length === 0 && (
+                    <p className="text-[17px] font-medium text-[#2d2416]" style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}>
+                      A meal 🍽
+                    </p>
+                  )}
+                  {visit.bringing_groceries && foodItems.length === 0 && (
+                    <p className="text-[17px] font-medium text-[#2d2416]" style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}>
+                      Groceries 🛒
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom — gradient + message box + send button */}
+      <div
+        className="fixed bottom-0 left-0 right-0 flex flex-col gap-[14px] p-6 pointer-events-none"
+        style={{ background: "linear-gradient(to bottom, rgba(253,248,243,0) 0%, #fdf8f3 21%)" }}
+      >
+        <p
+          className="text-[24px] text-[#6b5740] pointer-events-auto"
+          style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+        >
+          Would you like to send a message?
+        </p>
+
+        <div className="w-full pb-[4px] pointer-events-auto">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message here!"
+            className="w-full h-[120px] bg-white border border-[#e8a87c] rounded-[16px] p-[14px] resize-none focus:outline-none
+              text-[18pt] text-[#2d2416] placeholder:text-[#e8a87c] placeholder:font-semibold"
+            style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif" }}
+          />
+        </div>
 
         <button
           onClick={sendRequest}
           disabled={sending || !message.trim()}
-          className="w-full bg-[#e8a87c] hover:bg-[#d9976a] disabled:opacity-50 text-white text-base font-semibold py-4 rounded-2xl shadow-sm transition-colors"
+          className="w-full h-16 flex items-center justify-center bg-[#7aab8a] hover:bg-[#699978] disabled:opacity-50 text-white text-[18px] font-bold rounded-[16px] shadow-[0px_0px_14px_0px_#cfc7bf] transition-colors pointer-events-auto"
+          style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}
         >
-          {sent ? "Sent! 🌸" : sending ? "Sending…" : "Send to my volunteers"}
+          {sending ? "Sending…" : sent ? "Sent! 🌸" : "Send the message"}
         </button>
       </div>
-
-      {/* Footer note */}
-      <p className="text-center text-[#b0a090] text-sm mt-8">
-        We love you, Exie 🌸
-      </p>
     </main>
   );
 }
