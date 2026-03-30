@@ -3,15 +3,13 @@ import { Resend } from 'resend'
 import { supabase } from '@/lib/supabase'
 import type { FoodItem, Volunteer, Visit } from '@/types/database'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-// The "from" address — update to your verified Resend domain once set up.
-// During testing you can use: onboarding@resend.dev (sends only to your own address)
-const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
+// Initialized lazily inside the handler so it doesn't run at build time
 
 type VisitRow = Visit & { volunteer: Volunteer; food_items: FoodItem[] }
 
 export async function GET(request: NextRequest) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev'
   // Verify Vercel cron secret when deployed
   const authHeader = request.headers.get('authorization')
   if (
