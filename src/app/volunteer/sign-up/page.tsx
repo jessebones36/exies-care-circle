@@ -54,7 +54,7 @@ export default function SignUpPage() {
 
   const [form, setForm] = useState({
     name: "",
-    phone: "",
+    email: "",
     guestName: "",
     date: "",
     time: "",
@@ -134,7 +134,7 @@ export default function SignUpPage() {
 
     const { data: volunteerData, error: volunteerError } = await supabase
       .from("volunteers")
-      .insert({ name: form.name.trim(), phone: form.phone.trim() || null, email: null })
+      .insert({ name: form.name.trim(), phone: null, email: form.email.trim() || null })
       .select("id")
       .single();
 
@@ -231,10 +231,10 @@ export default function SignUpPage() {
             className={inputClass}
           />
           <input
-            type="tel"
-            name="phone"
-            placeholder="Phone number (optional)"
-            value={form.phone}
+            type="email"
+            name="email"
+            placeholder="Email (optional)"
+            value={form.email}
             onChange={handleChange}
             className={inputClass}
           />
@@ -389,9 +389,7 @@ export default function SignUpPage() {
           {/* Added items */}
           {foodItems.map((fi, i) => (
             <div key={i} className="w-full bg-white border border-[#e8ddd0] rounded-[12px] h-[48px] px-[14px] flex items-center justify-between">
-              <span className="text-[14px] text-[#2d2416]">
-                {fi.item}{fi.quantity ? ` • ${fi.quantity}` : ""}
-              </span>
+              <span className="text-[14px] text-[#2d2416]">{fi.item}</span>
               <button
                 type="button"
                 onClick={() => removeFoodItem(i)}
@@ -406,27 +404,19 @@ export default function SignUpPage() {
           ))}
 
           {/* Add row */}
-          <div className="grid gap-[10px]" style={{ gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)" }}>
+          <div className="flex gap-[10px]">
             <input
               type="text"
               placeholder="Item name"
               value={newItem.item}
               onChange={(e) => setNewItem((p) => ({ ...p, item: e.target.value }))}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addFoodItem())}
-              className="bg-white border border-[#e8ddd0] rounded-[12px] h-[48px] px-[14px] text-[14px] text-[#2d2416] placeholder:text-[#988b7e] focus:outline-none focus:border-[#e8a87c] transition-colors"
-            />
-            <input
-              type="text"
-              placeholder="Qty"
-              value={newItem.quantity}
-              onChange={(e) => setNewItem((p) => ({ ...p, quantity: e.target.value }))}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addFoodItem())}
-              className="bg-white border border-[#e8ddd0] rounded-[12px] h-[48px] px-[14px] text-[14px] text-[#2d2416] placeholder:text-[#988b7e] focus:outline-none focus:border-[#e8a87c] transition-colors"
+              className="flex-1 bg-white border border-[#e8ddd0] rounded-[12px] h-[48px] px-[14px] text-[14px] text-[#2d2416] placeholder:text-[#988b7e] focus:outline-none focus:border-[#e8a87c] transition-colors"
             />
             <button
               type="button"
               onClick={addFoodItem}
-              className="bg-[#e8a87c] hover:bg-[#d9976a] text-white rounded-[12px] h-[48px] text-[13px] font-semibold transition-colors"
+              className="bg-[#e8a87c] hover:bg-[#d9976a] text-white rounded-[12px] h-[48px] px-5 text-[13px] font-semibold transition-colors shrink-0"
             >
               Add
             </button>

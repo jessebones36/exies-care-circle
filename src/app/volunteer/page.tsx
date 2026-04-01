@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-type MainTab = "schedule" | "pantry" | "messages";
-
-type PantryItem = { id: string; item_name: string; quantity: string | null; location: string };
+type MainTab = "schedule" | "messages";
 
 type ExieMessage = { id: string; message: string; created_at: string };
 
@@ -35,10 +33,6 @@ export default function VolunteerPage() {
   const [thisWeekExpanded, setThisWeekExpanded] = useState(true);
   const [exieMessages, setExieMessages] = useState<ExieMessage[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
-  const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
-  const [swipedItem, setSwipedItem] = useState<string | null>(null);
-  const touchStartX = useRef<number>(0);
-
   const latestMessage = exieMessages[0] ?? null;
 
   function getWeekSunday(d: Date): Date {
@@ -96,16 +90,6 @@ export default function VolunteerPage() {
   }
 
   useEffect(() => {
-    supabase
-      .from("pantry_items")
-      .select("id, item_name, quantity, location")
-      .order("item_name")
-      .then(({ data }) => {
-        if (data) setPantryItems(data as PantryItem[]);
-      });
-  }, []);
-
-  useEffect(() => {
     const sunday = getWeekSunday(new Date());
     const farFuture = new Date(sunday);
     farFuture.setDate(sunday.getDate() + 7 * 12);
@@ -160,11 +144,6 @@ export default function VolunteerPage() {
     setVisits((prev) => prev.filter((v) => v.id !== id));
   }
 
-  async function deletePantryItem(id: string) {
-    const { error } = await supabase.from("pantry_items").delete().eq("id", id);
-    if (!error) setPantryItems((prev) => prev.filter((p) => p.id !== id));
-  }
-
   async function clearMessage(id: string) {
     const { error } = await supabase.from("exie_requests").delete().eq("id", id);
     if (!error) setExieMessages((prev) => prev.filter((m) => m.id !== id));
@@ -210,10 +189,9 @@ export default function VolunteerPage() {
 
         {/* Tab bar */}
         <div className="flex bg-white rounded-[16px] p-[6px] border border-[#efe8e0]">
-          {(["schedule", "pantry", "messages"] as MainTab[]).map((tab) => {
+          {(["schedule", "messages"] as MainTab[]).map((tab) => {
             const labels: Record<MainTab, string> = {
               schedule: "📅  Schedule",
-              pantry: "🥫 Pantry",
               messages: "💬 Exie Msg",
             };
             const active = mainTab === tab;
@@ -311,38 +289,6 @@ export default function VolunteerPage() {
           </div>
         )}
 
-        {/* ── Pantry Tab ───────────────────────────────────────────────────── */}
-        {mainTab === "pantry" && (
-          <div className="flex flex-col gap-4">
-            {/* Scripture */}
-            <p
-              className="text-center text-[#dca987] leading-[24px]"
-              style={{ fontFamily: "var(--font-crimson-pro), Georgia, serif", fontSize: "17.5px", fontWeight: 500 }}
-            >
-              "For this is what Jehovah the God of Israel says: 'The large jar of flour will not run out, and the small jar of oil will not run dry.'"
-              <br />
-              <span className="font-semibold">— 1 Kings 17:14</span>
-            </p>
-
-            {/* List */}
-            {pantryItems.length > 0 && (
-              <div className="flex flex-col gap-[10px]">
-                {pantryItems.map((item) => (
-                  <PantryListItem
-                    key={item.id}
-                    item={item}
-                    revealed={swipedItem === item.id}
-                    onReveal={() => setSwipedItem(item.id)}
-                    onHide={() => setSwipedItem(null)}
-                    onDelete={() => deletePantryItem(item.id)}
-                    touchStartX={touchStartX}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── Messages Tab ─────────────────────────────────────────────────── */}
         {mainTab === "messages" && (
           <div className="flex flex-col gap-4">
@@ -372,27 +318,17 @@ export default function VolunteerPage() {
       </div>
 
       {/* Bottom CTA — gradient fade + floating button */}
-      {(mainTab === "schedule" || mainTab === "pantry") && (
+      {mainTab === "schedule" && (
         <div className="fixed bottom-0 left-0 right-0 h-[170px] flex flex-col items-center justify-end p-6 pointer-events-none"
           style={{ background: "linear-gradient(to bottom, rgba(253,248,243,0) 0%, #fdf8f3 45%)" }}
         >
-          {mainTab === "schedule" ? (
-            <Link
-              href="/volunteer/sign-up"
-              className="w-full max-w-lg h-16 flex items-center justify-center bg-[#7aab8a] hover:bg-[#699978] text-white text-[18px] font-bold rounded-[16px] shadow-[0px_0px_14px_0px_#cfc7bf] transition-colors pointer-events-auto"
-              style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}
-            >
-              Sign up for a visit
-            </Link>
-          ) : (
-            <Link
-              href="/volunteer/pantry/add"
-              className="w-full max-w-lg h-16 flex items-center justify-center bg-[#e8a87c] hover:bg-[#d9976a] text-white text-[18px] font-bold rounded-[16px] shadow-[0px_0px_14px_0px_#cfc7bf] transition-colors pointer-events-auto"
-              style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}
-            >
-              Add an item to the pantry
-            </Link>
-          )}
+          <Link
+            href="/volunteer/sign-up"
+            className="w-full max-w-lg h-16 flex items-center justify-center bg-[#7aab8a] hover:bg-[#699978] text-white text-[18px] font-bold rounded-[16px] shadow-[0px_0px_14px_0px_#cfc7bf] transition-colors pointer-events-auto"
+            style={{ fontFamily: "var(--font-raleway), system-ui, sans-serif" }}
+          >
+            Sign up for a visit
+          </Link>
         </div>
       )}
     </main>
