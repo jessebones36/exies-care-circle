@@ -16,6 +16,7 @@ type Visit = {
   cancelled: boolean;
   bringing_meal: boolean;
   bringing_groceries: boolean;
+  volunteer_id: string;
   volunteers: { name: string } | null;
   food_items: { item_name: string; quantity: string | null }[];
 };
@@ -95,7 +96,7 @@ export default function VolunteerPage() {
     farFuture.setDate(sunday.getDate() + 7 * 12);
     supabase
       .from("visits")
-      .select("id, visit_date, visit_time, is_recurring, cancelled, bringing_meal, bringing_groceries, volunteers(name), food_items(item_name, quantity)")
+      .select("id, visit_date, visit_time, is_recurring, cancelled, bringing_meal, bringing_groceries, volunteer_id, volunteers(name), food_items(item_name, quantity)")
       .eq("cancelled", false)
       .gte("visit_date", toISODate(sunday))
       .lte("visit_date", toISODate(farFuture))
@@ -135,13 +136,33 @@ export default function VolunteerPage() {
     };
   }, []);
 
-  async function removeVisit(id: string) {
-    const { error } = await supabase
-      .from("visits")
-      .update({ cancelled: true, cancelled_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) throw new Error(error.message);
-    setVisits((prev) => prev.filter((v) => v.id !== id));
+  async function removeVisit(id: string, mode: "single" | "all-future") {
+    const now = new Date().toISOString();
+    if (mode === "single") {
+      const { error } = await supabase
+        .from("visits")
+        .update({ cancelled: true, cancelled_at: now })
+        .eq("id", id);
+      if (error) throw new Error(error.message);
+      setVisits((prev) => prev.filter((v) => v.id !== id));
+    } else {
+      const visit = visits.find((v) => v.id === id);
+      if (!visit) throw new Error("Visit not found");
+      const { error } = await supabase
+        .from("visits")
+        .update({ cancelled: true, cancelled_at: now })
+        .eq("volunteer_id", visit.volunteer_id)
+        .eq("is_recurring", true)
+        .eq("cancelled", false)
+        .gte("visit_date", visit.visit_date);
+      if (error) throw new Error(error.message);
+      setVisits((prev) =>
+        prev.filter(
+          (v) =>
+            !(v.volunteer_id === visit.volunteer_id && v.is_recurring && v.visit_date >= visit.visit_date)
+        )
+      );
+    }
   }
 
   async function clearMessage(id: string) {
@@ -250,7 +271,7 @@ export default function VolunteerPage() {
                     expanded={expandedVisit === visit.id}
                     onToggle={() => setExpandedVisit(expandedVisit === visit.id ? null : visit.id)}
                     display={display(visit)}
-                    onRemove={() => removeVisit(visit.id)}
+                    onRemove={(mode) => removeVisit(visit.id, mode)}
                   />
                 ))
               ) : null}
@@ -281,7 +302,7 @@ export default function VolunteerPage() {
                       expanded={expandedVisit === visit.id}
                       onToggle={() => setExpandedVisit(expandedVisit === visit.id ? null : visit.id)}
                       display={display(visit)}
-                      onRemove={() => removeVisit(visit.id)}
+                      onRemove={(mode) => removeVisit(visit.id, mode)}
                     />
                   ))}
               </div>
@@ -414,7 +435,7 @@ function VisitCard({
   expanded: boolean;
   onToggle: () => void;
   display: string;
-  onRemove: () => Promise<void>;
+  onRemove: (mode: "single" | "all-future") => Promise<void>;
 }) {
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -493,37 +514,73 @@ function VisitCard({
               {removeError && (
                 <p className="text-xs text-[#f93e14]">Something went wrong — please try again.</p>
               )}
-              <p className="text-sm text-[#2d2416]">
-                {visit.is_recurring
-                  ? "This is a recurring weekly visit — removing it will remove all future occurrences. Continue?"
-                  : "Remove this visit from the schedule?"}
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setRemoving(true);
-                    setRemoveError(false);
-                    try {
-                      await onRemove();
-                    } catch {
-                      setRemoveError(true);
-                    }
-                    setRemoving(false);
-                    setConfirmingRemove(false);
-                  }}
-                  disabled={removing}
-                  className="text-sm bg-[#f93e14] hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
-                >
-                  {removing ? "Removing…" : "Yes, remove"}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setConfirmingRemove(false); }}
-                  className="text-sm text-[#6b5740] px-3 py-1.5 rounded-lg border border-[#e8ddd0] hover:bg-[#f5efe8] transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+              {visit.is_recurring ? (
+                <>
+                  <p className="text-sm text-[#2d2416]">This is a recurring weekly visit. What would you like to cancel?</p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRemoving(true);
+                        setRemoveError(false);
+                        try { await onRemove("single"); } catch { setRemoveError(true); }
+                        setRemoving(false);
+                        setConfirmingRemove(false);
+                      }}
+                      disabled={removing}
+                      className="text-sm bg-[#f93e14] hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors text-left"
+                    >
+                      {removing ? "Removing…" : "Just this visit"}
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRemoving(true);
+                        setRemoveError(false);
+                        try { await onRemove("all-future"); } catch { setRemoveError(true); }
+                        setRemoving(false);
+                        setConfirmingRemove(false);
+                      }}
+                      disabled={removing}
+                      className="text-sm bg-[#f93e14] hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors text-left"
+                    >
+                      {removing ? "Removing…" : "This and all future visits"}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmingRemove(false); }}
+                      className="text-sm text-[#6b5740] px-3 py-1.5 rounded-lg border border-[#e8ddd0] hover:bg-[#f5efe8] transition-colors"
+                    >
+                      Keep it
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-[#2d2416]">Remove this visit from the schedule?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRemoving(true);
+                        setRemoveError(false);
+                        try { await onRemove("single"); } catch { setRemoveError(true); }
+                        setRemoving(false);
+                        setConfirmingRemove(false);
+                      }}
+                      disabled={removing}
+                      className="text-sm bg-[#f93e14] hover:bg-red-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      {removing ? "Removing…" : "Yes, remove"}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmingRemove(false); }}
+                      className="text-sm text-[#6b5740] px-3 py-1.5 rounded-lg border border-[#e8ddd0] hover:bg-[#f5efe8] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

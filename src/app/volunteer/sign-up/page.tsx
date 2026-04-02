@@ -50,6 +50,7 @@ const sectionHeaderClass =
 export default function SignUpPage() {
   const router = useRouter();
   const calendarRef = useRef<HTMLDivElement>(null);
+  const endCalendarRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
@@ -59,6 +60,7 @@ export default function SignUpPage() {
     date: "",
     time: "",
     isRecurring: false,
+    endDate: "",
   });
   const [foodItems, setFoodItems] = useState<{ item: string; quantity: string }[]>([]);
   const [newItem, setNewItem] = useState({ item: "", quantity: "" });
@@ -67,8 +69,13 @@ export default function SignUpPage() {
 
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [endCalendarOpen, setEndCalendarOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [endCalendarMonth, setEndCalendarMonth] = useState(() => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
@@ -95,6 +102,9 @@ export default function SignUpPage() {
       if (calendarRef.current && !calendarRef.current.contains(e.target as Node)) {
         setCalendarOpen(false);
       }
+      if (endCalendarRef.current && !endCalendarRef.current.contains(e.target as Node)) {
+        setEndCalendarOpen(false);
+      }
       if (timeRef.current && !timeRef.current.contains(e.target as Node)) {
         setTimeOpen(false);
       }
@@ -105,7 +115,11 @@ export default function SignUpPage() {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+      ...(name === "isRecurring" && !checked ? { endDate: "" } : {}),
+    }));
   }
 
   function addFoodItem() {
@@ -121,11 +135,12 @@ export default function SignUpPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!form.name.trim() || !form.date || !form.time) {
+    if (!form.name.trim() || !form.date || !form.time || (form.isRecurring && !form.endDate)) {
       setValidationError(
         !form.name.trim() ? "Please enter your name."
           : !form.date ? "Please select a visit date."
-          : "Please select a visit time."
+          : !form.time ? "Please select a visit time."
+          : "Please select an end date for your recurring visits."
       );
       return;
     }
@@ -144,36 +159,57 @@ export default function SignUpPage() {
       return;
     }
 
-    const { data: visitData, error: visitError } = await supabase
-      .from("visits")
-      .insert({
-        volunteer_id: (volunteerData as unknown as { id: string }).id,
-        visit_date: form.date,
-        visit_time: form.time,
-        is_recurring: form.isRecurring,
-        recurrence_day: form.isRecurring ? new Date(form.date + "T00:00:00").getDay() : null,
-        bringing_meal: foodItems.length > 0,
-        bringing_groceries: false,
-        notes: form.guestName.trim() ? `Guest: ${form.guestName.trim()}` : null,
-        cancelled: false,
-        cancelled_at: null,
-      })
-      .select("id")
-      .single();
+    const volunteerId = (volunteerData as unknown as { id: string }).id;
+    const recurrenceDay = form.isRecurring ? new Date(form.date + "T00:00:00").getDay() : null;
 
-    if (visitError || !visitData) {
-      console.error("Failed to save visit:", visitError);
+    // Generate one date per week from start to end (inclusive)
+    const visitDates: string[] = [];
+    if (form.isRecurring) {
+      const [sy, sm, sd] = form.date.split("-").map(Number);
+      const [ey, em, ed] = form.endDate.split("-").map(Number);
+      const cur = new Date(sy, sm - 1, sd);
+      const end = new Date(ey, em - 1, ed);
+      while (cur <= end) {
+        visitDates.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`);
+        cur.setDate(cur.getDate() + 7);
+      }
+    } else {
+      visitDates.push(form.date);
+    }
+
+    const { data: visitsData, error: visitsError } = await supabase
+      .from("visits")
+      .insert(
+        visitDates.map((date) => ({
+          volunteer_id: volunteerId,
+          visit_date: date,
+          visit_time: form.time,
+          is_recurring: form.isRecurring,
+          recurrence_day: recurrenceDay,
+          bringing_meal: foodItems.length > 0,
+          bringing_groceries: false,
+          notes: form.guestName.trim() ? `Guest: ${form.guestName.trim()}` : null,
+          cancelled: false,
+          cancelled_at: null,
+        }))
+      )
+      .select("id");
+
+    if (visitsError || !visitsData) {
+      console.error("Failed to save visits:", visitsError);
       setSubmitting(false);
       return;
     }
 
     if (foodItems.length > 0) {
       const { error: foodError } = await supabase.from("food_items").insert(
-        foodItems.map((fi) => ({
-          visit_id: (visitData as unknown as { id: string }).id,
-          item_name: fi.item.trim(),
-          quantity: fi.quantity.trim() || null,
-        }))
+        visitsData.flatMap((v: { id: string }) =>
+          foodItems.map((fi) => ({
+            visit_id: v.id,
+            item_name: fi.item.trim(),
+            quantity: null,
+          }))
+        )
       );
       if (foodError) console.error("Failed to save food items:", foodError);
     }
@@ -193,6 +229,24 @@ export default function SignUpPage() {
   const canGoPrev =
     calYear > today.getFullYear() ||
     (calYear === today.getFullYear() && calMonth > today.getMonth());
+
+  // End date calendar computed values
+  const endCalYear = endCalendarMonth.getFullYear();
+  const endCalMonth = endCalendarMonth.getMonth();
+  const endDaysInMonth = new Date(endCalYear, endCalMonth + 1, 0).getDate();
+  const endFirstDayOfMonth = new Date(endCalYear, endCalMonth, 1).getDay();
+  const endMonthLabel = endCalendarMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  // Earliest selectable end date: one week after start date
+  const minEndDate = (() => {
+    if (!form.date) return todayStr;
+    const [y, m, d] = form.date.split("-").map(Number);
+    const min = new Date(y, m - 1, d);
+    min.setDate(min.getDate() + 7);
+    return `${min.getFullYear()}-${String(min.getMonth() + 1).padStart(2, "0")}-${String(min.getDate()).padStart(2, "0")}`;
+  })();
+  const endCanGoPrev =
+    endCalYear > today.getFullYear() ||
+    (endCalYear === today.getFullYear() && endCalMonth > today.getMonth());
 
   return (
     <main className="min-h-screen bg-[#fdf8f3] pb-[170px]">
@@ -380,6 +434,82 @@ export default function SignUpPage() {
               className="w-5 h-5 accent-[#7aab8a]"
             />
           </label>
+
+          {/* End date picker — shown when recurring */}
+          {form.isRecurring && (
+            <div ref={endCalendarRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (form.date && !endCalendarOpen) {
+                    const [y, m] = form.date.split("-").map(Number);
+                    setEndCalendarMonth(new Date(y, m - 1, 1));
+                  }
+                  setEndCalendarOpen((v) => !v);
+                  setCalendarOpen(false);
+                  setTimeOpen(false);
+                }}
+                className={`w-full bg-white border rounded-[12px] h-[48px] px-[14px] text-[14px] text-left flex items-center justify-between transition-colors focus:outline-none ${
+                  endCalendarOpen ? "border-[#e8a87c]" : "border-[#e8ddd0]"
+                }`}
+              >
+                <span className={form.endDate ? "text-[#2d2416]" : "text-[#988b7e]"}>
+                  {form.endDate ? formatDateDisplay(form.endDate) : "Last visit date"}
+                </span>
+                <svg className="w-5 h-5 text-[#988b7e] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="8" y1="2" x2="8" y2="6" strokeWidth="2" strokeLinecap="round" />
+                  <line x1="3" y1="10" x2="21" y2="10" strokeWidth="2" />
+                </svg>
+              </button>
+
+              {endCalendarOpen && (
+                <div className="absolute z-20 mt-2 left-0 right-0 bg-white border border-[#e8ddd0] rounded-2xl shadow-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <button type="button" onClick={() => setEndCalendarMonth(new Date(endCalYear, endCalMonth - 1, 1))} disabled={!endCanGoPrev}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-[#6b5740] hover:bg-[#f0e8dc] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                      ‹
+                    </button>
+                    <span className="text-sm font-semibold text-[#2d2416]">{endMonthLabel}</span>
+                    <button type="button" onClick={() => setEndCalendarMonth(new Date(endCalYear, endCalMonth + 1, 1))}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-[#6b5740] hover:bg-[#f0e8dc] transition-colors">
+                      ›
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-7 mb-1">
+                    {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                      <div key={d} className="text-center text-xs text-[#b0a090] py-1 font-medium">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-1">
+                    {Array.from({ length: endFirstDayOfMonth }, (_, i) => <div key={`pad-${i}`} />)}
+                    {Array.from({ length: endDaysInMonth }, (_, i) => {
+                      const day = i + 1;
+                      const dateStr = toDateStr(endCalYear, endCalMonth, day);
+                      const isDisabled = dateStr < minEndDate;
+                      const isSelected = form.endDate === dateStr;
+                      return (
+                        <div key={day} className="flex items-center justify-center">
+                          <button type="button" disabled={isDisabled}
+                            onClick={() => { setForm((prev) => ({ ...prev, endDate: dateStr })); setEndCalendarOpen(false); }}
+                            className={[
+                              "w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors",
+                              isSelected ? "bg-[#7aab8a] text-white font-semibold"
+                                : isDisabled ? "text-[#d8d0c8] cursor-not-allowed"
+                                : "text-[#2d2416] hover:bg-[#f0e8dc] cursor-pointer",
+                            ].join(" ")}
+                          >
+                            {day}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Would you like to bring something? */}
